@@ -241,10 +241,14 @@ def update_modelling_data(ticker):
                 consolidated_row = format_articles_to_daily(same_day, ticker)
 
                 # We'll remove these duplicates
-                data = data[~data.duplicated(subset=['B'], keep=False)]
+                data = data[~data.duplicated(subset=['date'], keep=False)]
+            
+            # ******** TO UPDATE ********
+            else:
+                consolidated_row = pd.DataFrame(columns=data.columns)
 
             # And then append our consolidated row 
-            data = pd.concat([consolidated_row, data], axis = 0)
+            data = pd.concat([consolidated_row, data], axis = 0).sort_values(by='date', ascending=False)
 
             # Then save your data
             save_modelling_data(data, ticker)
@@ -283,5 +287,6 @@ EURUSD = "EURUSD=X" # EUR/USD
 USDJPY = "JPY=X"
 GBPUSD = "GBPUSD=X"
 
-for ticker in [EURUSD, USDJPY, GBPUSD]:
-    update_modelling_data(ticker)
+def main():
+    for ticker in [EURUSD, USDJPY, GBPUSD]:
+        update_modelling_data(ticker)

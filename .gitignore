@@ -1,1 +1,4 @@
-/.venv
+/env_fxTickerPredict
+/AWS_adapted_py_programs
+.env
+todo.md
