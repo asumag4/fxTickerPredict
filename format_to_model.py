@@ -98,41 +98,73 @@ def read_log_file():
 
 # --- Getting average daily news sentiment ---
 
-def get_high_low_daily_val(start, end, ticker):
+def get_params_val(start, end, ticker):
     ticker_data = ticker.history(start=start, end=end, interval="1d").reset_index()
-    return float(ticker_data.loc[0,"High"]), float(ticker_data.loc[0,"Low"])
+    return float(ticker_data.loc[0,'High']), float(ticker_data.loc[0,'Low']), float(ticker_data.loc[0,'Open']), float(ticker_data.loc[0,'Close'])
 
 # Function for finding daily ticker values; high and low 
-def find_high_low_daily_val(day, yf_ticker):
+def find_params_val(day, yf_ticker):
+    """
+    find_high_low_daily_val(<datetime>, <yf_ticker>) -> float, float, float, float
+
+    Previously this function only returned the `High` and `Low` daily yf_ticker value. 
+    It has been adjusted to also return `Open` and `Close` for further data!
+    """
     following_day = day + timedelta(days=1)
     try:
-        return get_high_low_daily_val(day, following_day, yf_ticker)
+        return get_params_val(day, following_day, yf_ticker)
     except:
-        try: # For when posted on a Saturday, go one day back 
-            previous_day = day - timedelta(days=1)
-            return get_high_low_daily_val(previous_day, day, yf_ticker)
-        except: 
-            try: # For when posted on a sunday, go one day back 
-                previous_2_days = day - timedelta(days=2)
-                return get_high_low_daily_val(previous_2_days, previous_day, yf_ticker)
-            except:
-                return None, None
+        print(f"Error: for {day} and {following_day}")
+        return None, None, None, None
+    
+# --- Helper Function: Calculating the SMA --- 
+def calc_sma(df, target, window):
+    return df[target].rolling(window=window).mean()
+
+# Getting SMA 
+def get_sma_for_preds(dataframe, window, dropped_cols):
+    for target in list(dataframe.drop(columns=dropped_cols).columns):
+        col_name_sma = f'{target}_sma'
+        dataframe[col_name_sma] = calc_sma(dataframe, target, window)
+    return dataframe
+
+def fill_in_na_sma(df):
+    # Select rows that have na values 
+
+    null_mask = df.isnull().any(axis=1)
+    null_rows = df[null_mask]
+    null_rows = null_rows.dropna(axis=1)
+    null_rows
+
+    # We'll fill it to be a 5 day moving average for the average per work week (try to)
+    null_rows = get_sma_for_preds(null_rows, 5, 'date')
+
+    # Now append this to our final dataset 
+    df[null_mask] = null_rows[null_mask]
+
+    df.dropna(inplace=True)
+
+    return df
 
 def format_articles_to_daily(articles, ticker): 
     # Get the aggregated daily sentiment
-    daily_sentiment = articles[['date','sentiment_polarity']].groupby([articles['date'].dt.date]).mean('sentiment_polarity').reset_index()
+    daily_sentiment = (
+                        articles[['date','sentiment_polarity']]
+                       .groupby([articles['date'].dt.floor('D')])
+                       .mean('sentiment_polarity')
+                       .reset_index()
+                       )
 
-
+    # We need to map our fed in `ticker` value to retrieve the generate `yf.Ticker` value
     map_yf_ticker = {
         "EURUSD=X" : yf.Ticker("EURUSD=X"),
         "JPY=X" : yf.Ticker("JPY=X"),
         "GBPUSD=X" : yf.Ticker("GBPUSD=X"),
     }
-
     yf_ticker = map_yf_ticker[ticker]
 
-    # Add in daily high and low data 
-    daily_sentiment[['High','Low']] = pd.DataFrame(daily_sentiment['date'].apply(lambda day: find_high_low_daily_val(day, yf_ticker)).tolist(), index=daily_sentiment.index)
+    # Add in daily `High`, `Low`, `Open` & `Close`
+    daily_sentiment[['High','Low','Open','Close']] = pd.DataFrame(daily_sentiment['date'].apply(lambda day: find_params_val(day, yf_ticker)).tolist(), index=daily_sentiment.index)
 
     print("--------------------------------------------")
     print(f"The number of null 'High' and 'Low' values found  \n {daily_sentiment.isnull().sum()}")
@@ -155,11 +187,17 @@ def generate_modelling_data(data, ticker):
 
     # Get the sentiment polarity
     data['sentiment_polarity'] = data['text'].apply(lambda x: analyze_sentiment(tokenizer=tokenizer, finbert=finbert, x=x))
-    print("Successfully retrieved the sentiment")
+    print("Successfully retrieved the sentiment from articles!")
 
     # Convert the raw formatted data to aggregated daily data 
     data = format_articles_to_daily(data, ticker)
     print("Successfully aggregated the date into daily format")
+
+    # Now add in Simple Moving Averages 
+    data = get_sma_for_preds(data.sort_values(by='date',ascending=True), 20, 'date') # Pre-determined window for 20 days; testers/news_articles_modelling.ipynb -- Simple Moving Average
+
+    # There will be dates that have null SMA values because they don't fit in the window; luckily these are in the last 'dates'
+    data = fill_in_na_sma(data)
 
     print(f"Final modelling dataset: {data.info}")
 
@@ -243,7 +281,6 @@ def update_modelling_data(ticker):
                 # We'll remove these duplicates
                 data = data[~data.duplicated(subset=['date'], keep=False)]
             
-            # ******** TO UPDATE ********
             else:
                 consolidated_row = pd.DataFrame(columns=data.columns)
 
@@ -288,5 +325,8 @@ USDJPY = "JPY=X"
 GBPUSD = "GBPUSD=X"
 
 def main():
+    print("Initializing ... pipeline: raw data -> modelling data")
     for ticker in [EURUSD, USDJPY, GBPUSD]:
         update_modelling_data(ticker)
+
+main() # Need this for when intialized manually

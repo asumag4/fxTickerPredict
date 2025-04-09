@@ -5,11 +5,11 @@ from prophet import Prophet
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from formatting_to_model import main as format_to_model
+from format_to_model import main as format_to_model
 
 # --- Helper: Determines the predictions of the data --- 
-def record_predictions(current_pred, ticker):
-    file_path = f"data/prediction_data/{ticker}_predictions_data"
+def record_predictions(current_pred, ticker, desc):
+    file_path = f"data/prediction_data/{ticker}_predictions_data_{desc}"
     logging_file = Path(file_path)
 
     if logging_file.is_file():
@@ -23,10 +23,10 @@ def record_predictions(current_pred, ticker):
     filtered_past_pred = past_pred[~past_pred['date'].isin(current_pred['date'])]
     to_write = pd.concat([current_pred, filtered_past_pred])
     
-    to_write.to_parquet(f"data/prediction_data/{ticker}_predictions_data")
-    return
+    to_write.to_parquet(f"data/prediction_data/{ticker}_predictions_data_{desc}")
 
-# --- Function to generate sentiment polarity predictions to be fed to final model ---
+"""
+# ---  DEPRECATED (ONLY FOR REFERENCE): Function to generate sentiment polarity predictions to be fed to final model ---
 def generate_sentiment_predictions(data):
     # Get the sentiment data
     sentiment_df = data[['date','sentiment_polarity']].rename(mapper = {"date" : "ds", "sentiment_polarity" : "y"}, axis = 1)
@@ -43,7 +43,7 @@ def generate_sentiment_predictions(data):
 
     return fc_sent[['ds','yhat']]
 
-# --- Generates Prophet Model to predict ticker values with Sentiment ---
+# --- DEPRECATED (ONLY FOR REFERENCE): Generates Prophet Model to predict ticker values with Sentiment ---
 def prophet_with_sentiment(data, target, sent_regr):
 
     ticker_df = data[['date', target,'sentiment_polarity']].rename(mapper = {"date" : "ds", target : "y"}, axis = 1)
@@ -58,31 +58,101 @@ def prophet_with_sentiment(data, target, sent_regr):
     forecast = m_ticker.predict(future)
 
     return forecast[['ds','yhat']]
+"""
+
+# --- Modelling Function --- 
+def generate_future_predictors_prophet(data, range_end): 
+    forecasts = {}
+    for predictor in data.drop(columns=['date','High','Low']).columns:
+        # Prep the data to fit prophet's requirements
+        df_fit = data[['date',predictor]].rename(mapper = {"date" : "ds", predictor : "y"}, axis = 1)
+
+        # Init the model 
+        m = Prophet()
+        m.fit(df_fit)
+
+        # 1. Generate future df to store forecast
+        future = pd.DataFrame({"ds" : [datetime.now() + timedelta(days= i) for i in range(0,range_end)]})
+        # 2. Forecast
+        forecast = m.predict(future)
+
+        if 'ds' not in list(forecasts.keys()): 
+            forecasts['ds'] = forecast['ds']
+        
+        forecasts[(predictor.lower() + "_pred")] = forecast['yhat']
+
+
+
+    forecasts = pd.DataFrame(forecasts)
+    return forecasts
+
+def model_and_predict_prophet(data, target, pred_regr):
+
+    if target == "High":
+        opp_target = "Low"
+    else:
+        opp_target = "High"
+
+    data = data.drop(columns=opp_target) # The data still needs the target though; for fitting how target moves with predictors
+
+    # Forecasting the target variable
+    train_df = data.rename(mapper = {"date" : "ds", target : "y"}, axis = 1)
+
+    # We're gonna have to rename our `_pred` columns back to their original in order for the model to work with out predicted data...
+    rename_map = dict(zip(list(pred_regr.drop(columns='ds').columns), list(data.drop(columns=['date',target]).columns)))
+
+    m = Prophet()
+
+    # We now need to add all the regressors 
+    for predictor in list(data.drop(columns=['date',target]).columns):
+        m.add_regressor(predictor)
+
+    m.fit(train_df)
+
+    # Since we're testing with current data: 
+    future = pd.DataFrame({"ds" : [datetime.now() + timedelta(days= i) for i in range(0,8)]})
+    future = pd.concat([future, pred_regr.drop(columns='ds').rename(columns=rename_map)], axis=1)
+
+    forecast = m.predict(future)
+    return forecast[['ds','yhat']]
+
 
 # --- Function to consolidate high and low data --- 
 
 def generate_predictions(ticker):
+
     data = pd.read_parquet(f"data/modelling_dataset/{ticker}_modelling_dataset")
-
-    sent_regr = generate_sentiment_predictions(data)
-
-    high_df = prophet_with_sentiment(data, "High", sent_regr).rename(mapper = {"ds" : "date", "yhat" : "high_pred"}, axis = 1)
-    low_df = prophet_with_sentiment(data, "Low", sent_regr).rename(mapper = {"ds" : "date", "yhat" : "low_pred"}, axis = 1)
     
-    # Theres an error in that the slight delay in seconds execution in predicting High and Low data will cause an issue, fix that:
-    sent_regr = sent_regr.rename(mapper = {"ds" : "date", "yhat" : "sent_pred"}, axis = 1)
-    sent_regr['date'] = sent_regr['date'].dt.date
-    high_df['date'] = high_df['date'].dt.date
-    low_df['date'] = low_df['date'].dt.date
+    for drop_columns in [[],['sentiment_polarity','sentiment_polarity_sma',]]: 
 
-    predicts_merged = pd.merge(high_df, low_df, on='date')
-    predicts_merged = pd.merge(predicts_merged, sent_regr, on='date')
-    print("DEBUG: see data merged!")
-    print(predicts_merged.info())
+        data1 = data.drop(columns=drop_columns)
 
-    record_predictions(predicts_merged, ticker)
+        # Generate the future predictors first 
+        pred_regr = generate_future_predictors_prophet(data1, 8) # Hard coded to 7 days (1 week) forecast
 
-    return predicts_merged
+        high_df = model_and_predict_prophet(data1, "High", pred_regr).rename(mapper = {"ds" : "date", "yhat" : "high_pred"}, axis = 1)
+        low_df = model_and_predict_prophet(data1, "Low", pred_regr).rename(mapper = {"ds" : "date", "yhat" : "low_pred"}, axis = 1)
+        
+        # Theres an error in that the slight delay in seconds execution in predicting High and Low data will cause an issue, fix that:
+        pred_regr = pred_regr.rename(mapper = {"ds" : "date"}, axis = 1)
+        pred_regr['date'] = pred_regr['date'].dt.date
+        high_df['date'] = high_df['date'].dt.date
+        low_df['date'] = low_df['date'].dt.date
+
+        predicts_merged = pd.merge(high_df, low_df, on='date')
+        predicts_merged = pd.merge(predicts_merged, pred_regr, on='date')
+        print("DEBUG: see data merged!")
+        print(predicts_merged.info())
+
+        if drop_columns:
+            desc = "no_sent"
+            record_predictions(predicts_merged, ticker, desc)
+            generate_errors_ticker(predicts_merged, ticker, desc)
+        else:
+            desc = "complete"
+            record_predictions(predicts_merged, ticker, desc)
+            generate_errors_ticker(predicts_merged, ticker, desc)
+
 
 # --- Helper Function: Getting the published date! ---
 def get_published_ticker_vals(day, ticker, target):
@@ -95,14 +165,14 @@ def get_published_ticker_vals(day, ticker, target):
         return real_data[target].iloc[0]
 
 # --- Generate Errors if possible --- 
-def generate_errors_ticker(now_err, ticker):
+def generate_errors_ticker(now_err, ticker, desc):
 
     # In the current predictions, the current day will give updated highs and lows! 
     for target in ['High', 'Low']:
         col_target_name = ERR_COL_MAPPINGS[target]
         now_err[col_target_name] = now_err['date'].apply(lambda x: get_published_ticker_vals(x, ticker, target))
 
-    file_path = f"data/error_data/{ticker}_error_data"
+    file_path = f"data/error_data/{ticker}_error_data_{desc}"
     error_data = Path(file_path)
 
     if error_data.is_file():
@@ -119,7 +189,7 @@ def generate_errors_ticker(now_err, ticker):
     updated_err = updated_err.dropna()
 
     # Save this data! 
-    updated_err.to_parquet(f"data/error_data/{ticker}_error_data")
+    updated_err.to_parquet(f"data/error_data/{ticker}_error_data_{desc}")
 
     return updated_err 
     # We'll calculate error later!
@@ -139,9 +209,10 @@ ERR_COL_MAPPINGS = {
 }
 
 def model_and_predict():
-    format_to_model()
-    for ticker in [EURUSD, USDJPY, GBPUSD]:
-        new_preds = generate_predictions(ticker)
-        generate_errors_ticker(new_preds, ticker)
+    # format_to_model()
+    print("Initializing ... pipeline: modeling data -> predicted & error data")
+    for ticker in [EURUSD, USDJPY, GBPUSD,]: 
+        generate_predictions(ticker)
+        
 
-model_and_predict()
+model_and_predict() # For when initialized independently

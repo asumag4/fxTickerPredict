@@ -225,6 +225,8 @@ def daily_update_table(ticker):
 # 3. Push the data to database
 # Open up the database 
 def write_to_raw_database(incoming_data, ticker):
+    print("Intializing... news scraper")
+
     # Define file folder path + file name
     file_path = r'data/raw_scrapped_data'
     file_name = f"/{ticker}_fxstreet_database" # Will throw an "invalid escape sequence" error and thats fine, it's not meant to be one
