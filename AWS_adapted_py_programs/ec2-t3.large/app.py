@@ -3,11 +3,32 @@ from streamlit_card import card
 
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
+import plotly.graph_objects as go 
 
 from datetime import datetime
 
 # Show Raw Data 
+
+# ------ Additional Functions to Adapt Program to AWS Environment ------
+
+# AWS Env Adapt: 
+import boto3
+import io
+
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+# --- Helper function: Reading .parquet files from S3 Buckets ---  
+def read_s3_parquet(Bucket, Key):
+    response = S3_CLIENT.get_object(
+        Bucket=Bucket,
+        Key=Key
+    )
+    # Read the binary content from the S3 object
+    content = response['Body'].read()
+    # Load the parquet file directly in to a pandas dataframe
+    data = pd.read_parquet(io.BytesIO(content))
+    return data
 
 # --- Charting Functions --- 
 # --- Charting Function --- 
@@ -64,7 +85,7 @@ def chart_est_value(pred_data, model_data, err_data, ticker):
         line=dict(color='blue')
     ))
 
-    # Add filled area between high and low
+    # Add filled area between high_pred and low_pred
     fig.add_trace(go.Scatter(
         x=pd.concat([model_data['date'], model_data['date'][::-1]]),
         y=pd.concat([model_data['High'], model_data['Low'][::-1]]),
@@ -99,7 +120,7 @@ def chart_error_value(err_data, ticker):
     fig.add_trace(go.Scatter(
         x=err_data['date'],
         y=err_data['low_pred'],
-        name='High Forecasts',
+        name='Low Forecasts',
         line=dict(color='red')
     ))
 
@@ -123,7 +144,7 @@ def chart_error_value(err_data, ticker):
     fig.add_trace(go.Scatter(
         x=err_data['date'],
         y=err_data['low_real'],
-        name='High',
+        name='Low',
         line=dict(color='blue')
     ))
 
@@ -223,6 +244,7 @@ def generate_action_card(currency, action, ticker):
         )
 
 # --- Determine which acitons the user should take based on the forecast lol ---
+
 def recommend_actions(ticker, pred_data, err_data): 
 
     numerator, denominator = get_ticker_ratio(ticker)
@@ -270,14 +292,11 @@ def recommend_actions(ticker, pred_data, err_data):
             # The model is unsure 
             generate_action_card(denominator, HOLD, ticker)
 
-
-
-
 def render_page_components(ticker, desc):
     # Retrieve the data! 
-    pred_data = pd.read_parquet(f"data/prediction_data/{ticker}_predictions_data_{desc}").sort_values(by='date', ascending=False)
-    err_data = pd.read_parquet(f"data/error_data/{ticker}_error_data_{desc}").sort_values(by='date', ascending=False)
-    model_data = pd.read_parquet(f"data/modelling_dataset/{ticker}_modelling_dataset").sort_values(by='date', ascending=False)
+    pred_data = read_s3_parquet(MODELLING_DATA_BUCKET, f"prediction_data/{ticker}_predictions_data_{desc}").sort_values(by='date', ascending=False)
+    err_data = read_s3_parquet(MODELLING_DATA_BUCKET, f"error_data/{ticker}_error_data_{desc}").sort_values(by='date', ascending=False)
+    model_data = read_s3_parquet(MODELLING_DATA_BUCKET, f"modelling_dataset/{ticker}_modelling_dataset").sort_values(by='date', ascending=False)
 
     # Show recommneded actions! 
     st.markdown("""#### Recommended Actions""")
@@ -301,8 +320,6 @@ def render_page_components(ticker, desc):
     col3.metric("Total RMSE", np.round(tot_rmse, 5))
     st.markdown("------")
 
-
-    
 # --- Streamlit Code (main) --- 
 
 st.header("FX-Predictor")
@@ -311,6 +328,9 @@ st.header("FX-Predictor")
 
 # TODO: Might want to turn this into a JSON file that can be accessed by all files to easily intergrate other tickers in one go!
 # Create a ticker for all currency pairs
+
+S3_CLIENT = boto3.client('s3')
+MODELLING_DATA_BUCKET = "projectfx608modellingdata"
 
 EURUSD = "EURUSD=X" # EUR/USD
 USDJPY = "JPY=X"
@@ -351,3 +371,4 @@ tabs_placeholder = st.empty()
 # Render initial tabs
 with tabs_placeholder.container():
     tab1, tab2, tab3 = render_data()
+

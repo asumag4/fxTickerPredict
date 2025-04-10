@@ -7,14 +7,84 @@ from pathlib import Path
 
 from format_to_model import main as format_to_model
 
+# ------ Additional Functions to Adapt Program to AWS Environment ------
+
+# AWS Env Adapt: 
+import boto3
+import io
+
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+# --- Helper function: Reading .parquet files from S3 Buckets ---  
+def read_s3_parquet(Bucket, Key):
+    response = S3_CLIENT.get_object(
+        Bucket=Bucket,
+        Key=Key
+    )
+    # Read the binary content from the S3 object
+    content = response['Body'].read()
+    # Load the parquet file directly in to a pandas dataframe
+    data = pd.read_parquet(io.BytesIO(content))
+    return data
+
+def write_s3_parquet(Bucket, data, Key, ticker):
+    # This function is to write a the modelling_dataset to parquet dataframe to S3 as a parquet file
+
+    buffer = io.BytesIO()
+    table = pa.Table.from_pandas(data)
+    pq.write_table(table, buffer)
+
+    try:
+        # Upload the parquet file from memory to S3
+        S3_CLIENT.put_object(
+            Bucket=Bucket,
+            Key=Key,
+            Body=buffer.getvalue()
+        )
+        print(f"{ticker} modelling dataset successfully uploaded as parquet to 's3://{Bucket}/{Key}")
+    except Exception as e:
+        print(f"Error uploading {ticker} modelling dataset to S3: {e}")
+
+def write_err_data_to_s3_parquet(Bucket, data, Key, ticker):
+    # This function is to write a the modelling_dataset to parquet dataframe to S3 as a parquet file
+
+    buffer = io.BytesIO()
+    table = pa.Table.from_pandas(data)
+    pq.write_table(table, buffer)
+
+    try:
+        # Upload the parquet file from memory to S3
+        S3_CLIENT.put_object(
+            Bucket=Bucket,
+            Key=Key,
+            Body=buffer.getvalue()
+        )
+        print(f"{ticker} modelling dataset successfully uploaded as parquet to 's3://{Bucket}/{Key}")
+    except Exception as e:
+        print(f"Error uploading {ticker} modelling dataset to S3: {e}")
+
+# --- Helper Function: Function to check if a file exists in S3 ---
+def file_exists_in_s3(bucket_name, s3_key):
+    try:
+        S3_CLIENT.head_object(Bucket=bucket_name, Key=s3_key)
+        return True
+    except Exception as e:
+        if e.response['Error']['Code'] == "404":
+            return False
+        else:
+            raise
+
+# ------ Regular Functions Adopted to AWS ------
+
 # --- Helper: Determines the predictions of the data --- 
 def record_predictions(current_pred, ticker, desc):
-    file_path = f"data/prediction_data/{ticker}_predictions_data_{desc}"
-    logging_file = Path(file_path)
+    pred_data_key = f"prediction_data/{ticker}_predictions_data_{desc}"
+    prediction_data_exists = file_exists_in_s3(MODELLING_DATA_BUCKET, pred_data_key)
 
-    if logging_file.is_file():
+    if prediction_data_exists:
         print(f"Record of predictions for {ticker} was found!")
-        past_pred = pd.read_parquet(file_path)
+        past_pred = read_s3_parquet(MODELLING_DATA_BUCKET, pred_data_key)
     else:
         print(f"No record of predictions for {ticker} was found... initializing file data to be written!")
         past_pred = pd.DataFrame(columns=['date', 'high_pred', 'low_pred', 'sent_pred'])
@@ -23,9 +93,8 @@ def record_predictions(current_pred, ticker, desc):
     filtered_past_pred = past_pred[~past_pred['date'].isin(current_pred['date'])]
     to_write = pd.concat([current_pred, filtered_past_pred])
     
-    to_write.to_parquet(f"data/prediction_data/{ticker}_predictions_data_{desc}")
-
-
+    write_s3_parquet(MODELLING_DATA_BUCKET, to_write, pred_data_key, ticker)
+    return
 
 # --- Modelling Function --- 
 def generate_future_predictors_prophet(data, range_end): 
@@ -47,9 +116,7 @@ def generate_future_predictors_prophet(data, range_end):
             forecasts['ds'] = forecast['ds']
         
         forecasts[(predictor.lower() + "_pred")] = forecast['yhat']
-
-
-
+    
     forecasts = pd.DataFrame(forecasts)
     return forecasts
 
@@ -83,13 +150,12 @@ def model_and_predict_prophet(data, target, pred_regr):
     forecast = m.predict(future)
     return forecast[['ds','yhat']]
 
-
 # --- Function to consolidate high and low data --- 
 
 def generate_predictions(ticker):
 
-    data = pd.read_parquet(f"data/modelling_dataset/{ticker}_modelling_dataset")
-    
+    data = read_s3_parquet(MODELLING_DATA_BUCKET, f"modelling_dataset/{ticker}_modelling_dataset")
+
     for drop_columns in [[],['sentiment_polarity','sentiment_polarity_sma',]]: 
 
         data1 = data.drop(columns=drop_columns)
@@ -120,7 +186,6 @@ def generate_predictions(ticker):
             record_predictions(predicts_merged, ticker, desc)
             generate_errors_ticker(predicts_merged, ticker, desc)
 
-
 # --- Helper Function: Getting the published date! ---
 def get_published_ticker_vals(day, ticker, target):
     ticker = yf.Ticker(ticker)
@@ -139,12 +204,12 @@ def generate_errors_ticker(now_err, ticker, desc):
         col_target_name = ERR_COL_MAPPINGS[target]
         now_err[col_target_name] = now_err['date'].apply(lambda x: get_published_ticker_vals(x, ticker, target))
 
-    file_path = f"data/error_data/{ticker}_error_data_{desc}"
-    error_data = Path(file_path)
+    file_path = f"error_data/{ticker}_error_data_{desc}"
+    err_data_exists = file_exists_in_s3(MODELLING_DATA_BUCKET, file_path)
 
-    if error_data.is_file():
+    if err_data_exists:
         print(f"Record of error predictions for {ticker} was found!")
-        past_err = pd.read_parquet(file_path)
+        past_err = read_s3_parquet(MODELLING_DATA_BUCKET, file_path)
     else:
         print(f"No record of predictions for {ticker} was found... initializing file data to be written!")
         past_err = pd.DataFrame(columns=['date', 'high_pred', 'low_pred', 'high_real', 'low_real'])
@@ -156,10 +221,9 @@ def generate_errors_ticker(now_err, ticker, desc):
     updated_err = updated_err.dropna()
 
     # Save this data! 
-    updated_err.to_parquet(f"data/error_data/{ticker}_error_data_{desc}")
+    write_err_data_to_s3_parquet(MODELLING_DATA_BUCKET, updated_err, file_path, ticker)
 
-    return updated_err 
-    # We'll calculate error later!
+
 
 # --- RUNNING THE PROGRAM --- 
 
@@ -175,11 +239,14 @@ ERR_COL_MAPPINGS = {
     'Low' : 'low_real',
 }
 
+S3_CLIENT = boto3.client('s3')
+RAW_DATA_BUCKET = "projectfx608"
+MODELLING_DATA_BUCKET = "projectfx608modellingdata"
+
 def model_and_predict():
     # format_to_model()
     print("Initializing ... pipeline: modeling data -> predicted & error data")
     for ticker in [EURUSD, USDJPY, GBPUSD,]: 
         generate_predictions(ticker)
         
-
 model_and_predict() # For when initialized independently

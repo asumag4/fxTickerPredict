@@ -10,13 +10,13 @@
   - [ ] Strategist financial report  
 
 Improvements
-- [ ] Fix Buggy updating forecasting! 
-- [ ] Toggle "With Sentiment" and "Without Sentiment"
-- [ ] Improve the model
+- [X] Fix Buggy updating forecasting! 
+- [X] Toggle "With Sentiment" and "Without Sentiment"
+- [X] Improve the model
   - [ ] Try an ensemble of models! 
-  - [ ] Try SARIMAX 
+  - [X] Try SARIMAX 
   - [ ] Add in other Regressors 
-    - [ ] Moving Average 
+    - [X] Moving Average 
     - [ ] Volatility 
     - [ ] Relative Strength Index 
     - [ ] Bollinger Bands 
