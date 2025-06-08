@@ -38,6 +38,8 @@ In AWS:
 ---
 The app for now simply acts like a dashboard. The app will indicate it's suggested action per each trading pair as listed in Yahoo Finance. 
 
+The user may toggle forecast result to include/exclude Forex news data. This is because the lack of accurate sentiment extraction introduced noise to the model, which increased RMSE (Root-Mean-Square Error) across all forecasts.
+
 ### Stack/ Dependencies
 
 <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Python-logo-notext.svg/1869px-Python-logo-notext.svg.png" width="100px"/> <img src="https://img.icons8.com/color/512/pandas.png" width="100px"/> <img src="https://images.crunchbase.com/image/upload/c_pad,f_auto,q_auto:eco,dpr_1/vgay5hqdvszlmvud3hwu" width="100px"/> <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTYDvVvSTSxKKvBwZAf9c9UWMY2yOfZvPq46g&s" width="100px"/> <img src="https://static-00.iconduck.com/assets.00/pytorch-icon-1694x2048-jgwjy3ne.png" width="100px"/> <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Scikit_learn_logo_small.svg/1200px-Scikit_learn_logo_small.svg.png" width="100px"/> <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR86kDWkquaiBSCj1nHaJTsCTNlVPH0GR4H2w&s
