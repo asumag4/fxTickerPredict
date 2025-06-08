@@ -1,0 +1,44 @@
+Intercept                   0.004111
+sentiment_polarity         -0.002877
+Open                      -17.049263
+Close                      17.981852
+sentiment_polarity_sma      0.019109
+High_sma                    1.511537
+Low_sma                     1.251182
+Open_sma                  125.622495
+Close_sma                -128.331345
+dtype: float64
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                   High   R-squared:                       0.978
+Model:                            OLS   Adj. R-squared:                  0.976
+Method:                 Least Squares   F-statistic:                     579.5
+Date:                Mon, 07 Apr 2025   Prob (F-statistic):           8.52e-84
+Time:                        21:49:36   Log-Likelihood:                 514.95
+No. Observations:                 115   AIC:                            -1012.
+Df Residuals:                     106   BIC:                            -987.2
+Df Model:                           8                                         
+Covariance Type:            nonrobust                                         
+==========================================================================================
+                             coef    std err          t      P>|t|      [0.025      0.975]
+------------------------------------------------------------------------------------------
+Intercept                  0.0041      0.021      0.196      0.845      -0.037       0.046
+sentiment_polarity        -0.0029      0.003     -0.862      0.390      -0.009       0.004
+Open                     -17.0493     33.389     -0.511      0.611     -83.246      49.147
+Close                     17.9819     33.393      0.538      0.591     -48.224      84.187
+sentiment_polarity_sma     0.0191      0.021      0.899      0.371      -0.023       0.061
+High_sma                   1.5115      0.450      3.361      0.001       0.620       2.403
+Low_sma                    1.2512      0.560      2.236      0.027       0.142       2.361
+Open_sma                 125.6225    191.130      0.657      0.512    -253.311     504.556
+Close_sma               -128.3313    191.084     -0.672      0.503    -507.173     250.510
+==============================================================================
+Omnibus:                       80.454   Durbin-Watson:                   1.870
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):              642.133
+Skew:                           2.240   Prob(JB):                    3.65e-140
+Kurtosis:                      13.674   Cond. No.                     2.74e+06
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+[2] The condition number is large, 2.74e+06. This might indicate that there are
+strong multicollinearity or other numerical problems.
