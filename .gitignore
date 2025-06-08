@@ -1,9 +1,3 @@
-<<<<<<< HEAD
 /.venv
-.env
 todo.md
-=======
-/env_fxTickerPredict
-.env
-todo.md
->>>>>>> fd826001e85d8c7f9ec9f090f816055a5018eaaa
+/chatgpt_prompts
