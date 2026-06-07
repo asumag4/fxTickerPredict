@@ -42,12 +42,17 @@ The user may toggle forecast result to include/exclude Forex news data. This is 
 
 ### Stack/ Dependencies
 
-<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Python-logo-notext.svg/1869px-Python-logo-notext.svg.png" width="100px"/> <img src="https://img.icons8.com/color/512/pandas.png" width="100px"/> <img src="https://images.crunchbase.com/image/upload/c_pad,f_auto,q_auto:eco,dpr_1/vgay5hqdvszlmvud3hwu" width="100px"/> <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTYDvVvSTSxKKvBwZAf9c9UWMY2yOfZvPq46g&s" width="100px"/> <img src="https://static-00.iconduck.com/assets.00/pytorch-icon-1694x2048-jgwjy3ne.png" width="100px"/> <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Scikit_learn_logo_small.svg/1200px-Scikit_learn_logo_small.svg.png" width="100px"/> <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR86kDWkquaiBSCj1nHaJTsCTNlVPH0GR4H2w&s
-" width="100px"/> <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTGDKmSgL7UJ6sstMUQTtjI2iDN7ClN2jRZ5Q&s
-" width="100px"/> <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Amazon_Web_Services_Logo.svg/1200px-Amazon_Web_Services_Logo.svg.png
-" width="100px"/> <img src="https://static-00.iconduck.com/assets.00/aws-ec2-icon-1696x2048-nhw31ife.png
-" width="100px"/> <img src="https://static-00.iconduck.com/assets.00/aws-s3-simple-storage-service-icon-1694x2048-ygs8j98c.png
-" width="100px"/> <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Jupyter_logo.svg/1200px-Jupyter_logo.svg.png
+* Python
+* Jupyter
+* Pandas
+* Pytorch
+* Scikit-learn
+* Numpy
+* Matplotlib
+* Seaborn
+* Amazon Web Services (AWS)
+* AWS EC2
+* AWS S3
 " width="100px"/> <img src="https://miro.medium.com/v2/resize:fit:1400/0*GUKP-h4wWRK5k-cQ.png
 " width="100px"/> 
 
